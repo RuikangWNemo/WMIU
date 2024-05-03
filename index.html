@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>朋友圈清晰照片处理器</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f0f0f0;
+}
+
+.container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+#fileInput {
+  display: block;
+  margin-bottom: 10px;
+}
+
+#convertBtn {
+  display: block;
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+#convertBtn:hover {
+  background-color: #45a049;
+}
+
+#usageBtn {
+  display: block;
+  padding: 10px 20px;
+  background-color: #337ab7;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 10px;
+}
+
+#usageBtn:hover {
+  background-color: #286090;
+}
+
+#progressBar {
+  margin-top: 20px;
+  background-color: #ddd;
+  border-radius: 5px;
+  height: 30px;
+  overflow: hidden;
+  display: none;
+}
+
+#progressBar div {
+  background-color: #4CAF50;
+  height: 100%;
+  width: 0%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.downloadBtn {
+  display: block;
+  margin-top: 10px;
+  padding: 8px 16px;
+  background-color: #337ab7;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+}
+
+.downloadBtn:hover {
+  background-color: #286090;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <input type="file" id="fileInput" accept="image/*" multiple>
+  <button id="convertBtn" onclick="convertImages()">开始转换</button>
+  <button id="usageBtn" onclick="showUsage()">使用说明</button>
+  <div id="progressBar"><div id="progressLabel"></div></div>
+</div>
+
+<script>
+function showUsage() {
+  var usageText = "Wechat Moment Images Upgrader(WMIU)\n是一个朋友圈清晰照片处理工具\n\n";
+  usageText += "1. 点击“选择图片”按钮选择要处理的图片。\n";
+  usageText += "2. 点击“开始转换”按钮进行处理，处理过程中会显示处理进度。\n";
+  usageText += "3. 处理完成后会自动下载处理好的图片。\n\n";
+  usageText += "注意：处理过程中会将图片预先压缩处理，以适应微信朋友圈发布最佳画质。\n";
+
+  alert(usageText);
+}
+
+function convertImages() {
+  var files = document.getElementById('fileInput').files;
+  var progressBar = document.getElementById('progressBar');
+  var progressLabel = document.getElementById('progressLabel');
+  var totalImages = files.length;
+  var currentImage = 0;
+
+  if (files.length === 0) {
+    alert('当前无任务！');
+    return;
+  }
+
+  progressBar.style.display = 'block';
+
+  function processImage(file, index) {
+    var reader = new FileReader();
+    reader.onload = function(event) {
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var ctx = canvas.getContext('2d');
+        var scale = 1;
+        var minDimension = Math.min(img.width, img.height);
+        if (minDimension > 1080) {
+          scale = 1080 / minDimension;
+        }
+        var newWidth = img.width * scale;
+        var newHeight = img.height * scale;
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+        
+        var imageData = ctx.getImageData(0, 0, newWidth, newHeight);
+        for (var i = 0; i < imageData.data.length; i += 4) {
+          var hsv = rgbToHsv(imageData.data[i], imageData.data[i + 1], imageData.data[i + 2]);
+          hsv[1] *= 1.05;
+          var rgb = hsvToRgb(hsv[0], hsv[1], hsv[2]);
+          imageData.data[i] = rgb[0];
+          imageData.data[i + 1] = rgb[1];
+          imageData.data[i + 2] = rgb[2];
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        var outputDataUrl = canvas.toDataURL('image/jpeg');
+
+        var downloadLink = document.createElement('a');
+        downloadLink.href = outputDataUrl;
+        downloadLink.download = 'processed_image_' + (index + 1) + '.jpg';
+        downloadLink.textContent = '下载图片';
+        downloadLink.className = 'downloadBtn';
+        downloadLink.style.display = 'none';
+
+        document.body.appendChild(downloadLink);
+
+        downloadLink.click();
+
+        document.body.removeChild(downloadLink);
+
+        currentImage++;
+
+        var progressWidth = (currentImage / totalImages) * 100 + "%";
+        progressLabel.style.width = progressWidth;
+
+        if (currentImage === totalImages) {
+          progressBar.style.display = 'none';
+          document.getElementById('fileInput').value = '';
+          progressLabel.style.width = '0%';
+        }
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  for (var i = 0; i < totalImages; i++) {
+    processImage(files[i], i);
+  }
+}
+
+function rgbToHsv(r, g, b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+
+  var max = Math.max(r, g, b);
+  var min = Math.min(r, g, b);
+  var h, s, v = max;
+
+  var d = max - min;
+  s = max === 0 ? 0 : d / max;
+
+  if (max === min) {
+    h = 0;
+  } else {
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  return [h, s, v];
+}
+
+function hsvToRgb(h, s, v) {
+  var r, g, b;
+
+  var i = Math.floor(h * 6);
+  var f = h * 6 - i;
+  var p = v * (1 - s);
+  var q = v * (1 - f * s);
+  var t = v * (1 - (1 - f) * s);
+
+  switch (i % 6) {
+    case 0: r = v, g = t, b = p; break;
+    case 1: r = q, g = v, b = p; break;
+    case 2: r = p, g = v, b = t; break;
+    case 3: r = p, g = q, b = v; break;
+    case 4: r = t, g = p, b = v; break;
+    case 5: r = v, g = p, b = q; break;
+  }
+
+  r = Math.round(r * 255);
+  g = Math.round(g * 255);
+  b = Math.round(b * 255);
+
+  return [r, g, b];
+}
+</script>
+</body>
+</html>
